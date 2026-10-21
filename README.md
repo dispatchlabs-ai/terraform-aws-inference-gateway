@@ -52,6 +52,10 @@ Linux. Module authoring commands are portable shell commands for Linux/macOS.
   with a dead-letter queue and CloudWatch alarms.
 - Least-privilege task/execution roles and bounded-retention logs. Provider
   credentials and the signing key remain in caller-owned Secrets Manager.
+- Optional durable employee access, credential, usage and budget-policy storage,
+  enabled with `enable_employee_access`. Spending limits remain unset by default.
+  Google OAuth client secrets can be supplied by ARN with
+  `authentication_secret_arns`; the runtime receives read access only.
 
 All inference and catalog work uses one provider owner. The standby authenticates
 and forwards requests without initializing providers. Takeover requires actual

@@ -47,6 +47,16 @@ variable "configuration_sha256" {
   }
 }
 variable "session_secret_arn" { type = string }
+variable "enable_employee_access" {
+  description = "Create durable employee identity, credential, usage and spending-policy storage for a compatible gateway runtime. No spending limits are enabled."
+  type        = bool
+  default     = false
+}
+variable "authentication_secret_arns" {
+  description = "Read-only Secrets Manager references for employee authentication, such as a Google OAuth client secret. Never supply secret values."
+  type        = list(string)
+  default     = []
+}
 variable "connection_secret_arns" {
   description = "Existing Secrets Manager credentials. This module never receives secret values."
   type        = list(string)

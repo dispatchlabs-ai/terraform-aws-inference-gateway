@@ -4,6 +4,7 @@ output "cluster_name" { value = aws_ecs_cluster.gateway.name }
 output "service_name" { value = aws_ecs_service.gateway.name }
 output "task_role_arn" { value = aws_iam_role.task.arn }
 output "owner_table_name" { value = aws_dynamodb_table.owner.name }
+output "access_table_name" { value = try(aws_dynamodb_table.access[0].name, null) }
 output "alb_dns_name" { value = aws_lb.gateway.dns_name }
 output "alb_zone_id" { value = aws_lb.gateway.zone_id }
 output "target_group_arn" { value = aws_lb_target_group.gateway.arn }

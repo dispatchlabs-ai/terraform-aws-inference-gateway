@@ -24,6 +24,8 @@ uncoordinated gateway, follow the fencing steps in [recovery](recovery.md).
 | `configuration_uri`, `configuration_sha256` | Immutable S3 JSON configuration and its content checksum. |
 | `session_secret_arn` | Existing session signing secret, 32 random bytes encoded as 64 lowercase hexadecimal characters. |
 | `connection_secret_arns` | Existing native Pi credentials in Secrets Manager. Values never enter Terraform. |
+| `enable_employee_access` | Default false. Create the durable identity, credential, usage and policy table; use `access_table_name` in the runtime configuration. |
+| `authentication_secret_arns` | Optional read-only secret ARNs for employee authentication, such as a Google OAuth client secret. |
 | `desired_count` | Default two ingress tasks; use zero for staging or fencing. No provider concurrency cap is imposed. |
 | `cpu`, `memory`, `cpu_architecture` | Defaults 512, 2048, X86_64. Use a valid Fargate combination and matching image. |
 | `kms_key_arns` | Optional customer-managed keys needed by configuration/credential storage. |
@@ -35,6 +37,13 @@ OAuth through the gateway runtime's native login with all writers stopped. A
 provider's refresh token must not be copied from another active application.
 Grant workload identities and models explicitly in the configuration; the module
 cannot decide which accounts or roles should be trusted.
+
+Employee access requires a compatible runtime and its
+[employee setup](https://github.com/dispatchlabs-ai/dispatch/blob/main/packages/inference-gateway/docs/employee-access.md).
+The module creates no employee identities or spending limits. Its optional access
+table uses point-in-time recovery, deletion protection and TTL only for expiring
+credentials/login flows. Include this table in backup and regional recovery;
+restoring only provider secrets does not restore employee access or usage.
 
 Build the runtime from a clean committed
 [Dispatch checkout](https://github.com/dispatchlabs-ai/dispatch) using its

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add optional durable employee access/usage storage and read-only authentication secret grants. Employee spending limits remain unset; policy and identity administration belong to the gateway runtime.
+
 - Rename the repository to `terraform-aws-inference-gateway`; module inputs, resource identities and published tags are unchanged.
 
 ## 0.1.0-alpha.2 — 2026-10-20

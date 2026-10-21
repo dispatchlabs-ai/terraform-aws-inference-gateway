@@ -57,12 +57,13 @@ resource "aws_iam_role" "task" {
 resource "aws_iam_role_policy" "task" {
   role = aws_iam_role.task.id
   policy = jsonencode({ Version = "2012-10-17", Statement = concat([
-    { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = concat([var.session_secret_arn], var.connection_secret_arns) },
+    { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = concat([var.session_secret_arn], var.connection_secret_arns, var.authentication_secret_arns) },
     { Effect = "Allow", Action = ["secretsmanager:PutSecretValue"], Resource = var.connection_secret_arns },
     { Effect = "Allow", Action = ["s3:GetObject"], Resource = local.configuration_arn },
     { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.owner.arn },
     { Effect = "Allow", Action = ["ecs:DescribeTasks", "ecs:StopTask"], Resource = local.task_arn_pattern, Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.gateway.arn } } }
-  ], length(var.kms_key_arns) == 0 ? [] : [{ Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = var.kms_key_arns }]) })
+    ], var.enable_employee_access ? [{ Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"], Resource = aws_dynamodb_table.access[0].arn }] : [],
+  length(var.kms_key_arns) == 0 ? [] : [{ Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = var.kms_key_arns }]) })
 }
 
 resource "aws_security_group" "alb" {

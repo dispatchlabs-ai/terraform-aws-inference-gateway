@@ -5,7 +5,7 @@ OAuth credentials out of workloads. This module deploys a public HTTPS ALB,
 Fargate ingress tasks across availability zones, and coordination that allows
 one task to own provider operations safely.
 
-**Source alpha.** Created by Chris Reynolds, cofounder of Dispatch Labs AI.
+**Source alpha, v0.1.0-alpha.2.** Created by Chris Reynolds, cofounder of Dispatch Labs AI.
 MIT licensed. Requires an AWS account, an existing VPC with two public subnets,
 a Route 53 zone, a compatible container image, and enrolled Secrets Manager
 credentials. It creates billable infrastructure. It does not provision provider

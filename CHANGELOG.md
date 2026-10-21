@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-alpha.2 — 2026-10-20
 
 - Match ECS-normalized container defaults so repeated plans do not replace an unchanged task definition.
+- Clarify DNS staging during migration and record the observed recovery gap with default draining.
 
 ## 0.1.0-alpha.1 — 2026-10-20
 

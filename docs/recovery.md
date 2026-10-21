@@ -16,9 +16,13 @@ old owner-table snapshot beside a live service.
 
 ## Migrate or roll back
 
-1. Stage the new module with desired count zero and a real pinned image/config.
+1. Stage the new module with desired count zero, `manage_dns = false` and a real
+   pinned image/config. Keep the existing hostname pointed at the old service;
+   creating the new alias now would send traffic to an empty target group.
 2. Stop the old service, disable automatic restart and verify its process is gone.
-3. Start the ECS service, verify authenticated provider requests, then switch DNS.
+3. Start the ECS service, verify authenticated provider requests, then switch the
+   caller-owned DNS record to the ALB. If transferring DNS ownership into this
+   module, import the existing record through a separately reviewed plan.
 4. Retain the previous image/config and current secrets for rollback. Retire the
    old host once acceptance succeeds.
 
@@ -37,6 +41,12 @@ A deployment can interrupt streams and pause new provider work during draining.
 ALB deregistration allows up to 300 seconds; Fargate allows 120 seconds after
 SIGTERM, and the runtime uses a shorter deadline. Provider inference is never
 automatically replayed, because a lost response does not prove it was uncharged.
+
+In the October 20, 2026 acceptance deployment, a planned owner `StopTask` with
+the default 300-second ALB drain returned an authenticated catalog successfully
+429 seconds after the stop request. The peer took ownership only after ECS
+reported the predecessor `STOPPED`, and real inference then succeeded. This is
+one observed recovery time, not an upper bound or a service-level commitment.
 
 ## Missing STOPPED evidence
 

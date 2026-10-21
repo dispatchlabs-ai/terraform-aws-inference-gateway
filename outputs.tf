@@ -1,0 +1,11 @@
+output "url" { value = "https://${var.domain_name}" }
+output "cluster_arn" { value = aws_ecs_cluster.gateway.arn }
+output "cluster_name" { value = aws_ecs_cluster.gateway.name }
+output "service_name" { value = aws_ecs_service.gateway.name }
+output "task_role_arn" { value = aws_iam_role.task.arn }
+output "owner_table_name" { value = aws_dynamodb_table.owner.name }
+output "alb_dns_name" { value = aws_lb.gateway.dns_name }
+output "alb_zone_id" { value = aws_lb.gateway.zone_id }
+output "target_group_arn" { value = aws_lb_target_group.gateway.arn }
+output "log_group_name" { value = aws_cloudwatch_log_group.gateway.name }
+output "stopped_events_dead_letter_queue_url" { value = aws_sqs_queue.failed_events.url }

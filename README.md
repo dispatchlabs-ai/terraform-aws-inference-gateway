@@ -1,4 +1,4 @@
-# Terraform AWS provider gateway
+# Terraform AWS inference gateway
 
 Run a shared Pi inference gateway on AWS while keeping provider API keys and
 OAuth credentials out of workloads. This module deploys a public HTTPS ALB,
@@ -15,7 +15,7 @@ accounts, host agent databases, or guarantee uninterrupted streams.
 
 Give an agent with shell, file and web access this prompt:
 
-> Follow https://github.com/dispatchlabs-ai/terraform-aws-provider-gateway/blob/main/docs/deploy.md.
+> Follow https://github.com/dispatchlabs-ai/terraform-aws-inference-gateway/blob/main/docs/deploy.md.
 > Clone the source alpha, initialize and validate its basic example, and explain
 > the AWS resources and inputs needed for my deployment. Do not deploy until I
 > request it. Never put credential values in Terraform or logs.
@@ -27,8 +27,8 @@ verified compatibility with every agent.
 Manual path:
 
 ```sh
-git clone https://github.com/dispatchlabs-ai/terraform-aws-provider-gateway.git
-cd terraform-aws-provider-gateway
+git clone https://github.com/dispatchlabs-ai/terraform-aws-inference-gateway.git
+cd terraform-aws-inference-gateway
 tofu -chdir=examples/basic init -backend=false
 tofu -chdir=examples/basic validate
 ```

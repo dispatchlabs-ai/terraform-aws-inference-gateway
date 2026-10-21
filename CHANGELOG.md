@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Rename the repository to `terraform-aws-inference-gateway`; module inputs, resource identities and published tags are unchanged.
+
 ## 0.1.0-alpha.2 — 2026-10-20
 
 - Match ECS-normalized container defaults so repeated plans do not replace an unchanged task definition.

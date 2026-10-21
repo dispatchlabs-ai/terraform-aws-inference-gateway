@@ -201,8 +201,9 @@ resource "aws_ecs_task_definition" "gateway" {
   container_definitions = jsonencode([{
     name            = "gateway", image = var.image, essential = true,
     user            = "1000:1000", readonlyRootFilesystem = true, stopTimeout = 120,
-    linuxParameters = { initProcessEnabled = true, capabilities = { drop = ["ALL"] } },
-    portMappings    = [{ containerPort = 8787, protocol = "tcp" }],
+    linuxParameters = { initProcessEnabled = true, capabilities = { add = [], drop = ["ALL"] } },
+    portMappings    = [{ containerPort = 8787, hostPort = 8787, protocol = "tcp" }],
+    mountPoints     = [], volumesFrom = [], systemControls = [],
     environment = [
       { name = "AWS_REGION", value = local.region },
       { name = "DISPATCH_GATEWAY_CONFIG", value = var.configuration_uri },

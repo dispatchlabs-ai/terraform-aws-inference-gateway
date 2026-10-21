@@ -2,7 +2,7 @@
 
 This is a maintainer-led MIT source alpha by Chris Reynolds. Contributions use
 MIT without a CLA or copyright assignment. Keep public examples synthetic and
-keep runtime provider logic in Dispatch's inference-gateway package.
+keep runtime provider logic in the separately maintained inference gateway.
 
 Install OpenTofu or Terraform and run:
 

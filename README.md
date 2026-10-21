@@ -64,9 +64,11 @@ This protects rotating OAuth credentials but permits a recovery gap. In-flight
 streams can be interrupted and are never automatically replayed.
 
 The module expects the ECS-aware runtime in
-[Dispatch's inference gateway](https://github.com/dispatchlabs-ai/dispatch/tree/main/packages/inference-gateway).
+[inference gateway repository](https://github.com/dispatchlabs-ai/inference-gateway),
+which is private. Obtain a compatible runtime image separately; this public
+module does not distribute the gateway runtime.
 It is not a generic arbitrary-container hosting module. Runtime protocol,
-authentication, model grants and credential refresh belong to that package.
+authentication, model grants and credential refresh belong to that runtime.
 
 Read [inputs and operation](docs/deploy.md), [recovery](docs/recovery.md),
 [contributing](CONTRIBUTING.md), [security](SECURITY.md), and

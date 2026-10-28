@@ -60,6 +60,7 @@ resource "aws_iam_role_policy" "deployment" {
   role  = aws_iam_role.deployment[0].id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["elasticloadbalancing:ModifyRule"], Resource = aws_lb_listener_rule.production[0].arn },
+    { Sid = "GatewayTargetRegistration", Effect = "Allow", Action = ["elasticloadbalancing:RegisterTargets", "elasticloadbalancing:DeregisterTargets"], Resource = [aws_lb_target_group.gateway.arn, aws_lb_target_group.alternate[0].arn] },
     { Effect = "Allow", Action = ["elasticloadbalancing:DescribeRules", "elasticloadbalancing:DescribeListeners", "elasticloadbalancing:DescribeLoadBalancers", "elasticloadbalancing:DescribeTargetGroups", "elasticloadbalancing:DescribeTargetHealth"], Resource = "*" }
   ] })
 }

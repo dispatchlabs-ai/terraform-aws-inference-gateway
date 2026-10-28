@@ -153,7 +153,8 @@ class Controller:
             return chosen
         current = next((t for t in old if t["identity"] == writer), None)
         require(current is not None, "Writer is outside the pinned task sets")
-        chosen = new[0]
+        chosen = next((t for t in new if t["state"].get("writeEligible", True)), None)
+        require(chosen is not None, "No eligible successor writer")
         try:
             self.http(current["origin"], "/v1/admin/deployment/handoff", chosen["identity"])
         except TaskHttpError as error:
@@ -236,7 +237,8 @@ class Controller:
             hook = self.hook(deployment["lifecycleStage"])
             source, target = self.tasks("source"), self.tasks("target", cleanup=True)
             for task in source:
-                self.http(task["origin"], "/v1/admin/deployment/activate", {})
+                if not task["state"].get("accepting"):
+                    task["state"] = self.http(task["origin"], "/v1/admin/deployment/activate", {})
             chosen = self.transfer(target, source)
             self.rollback_route()
             if not self.drain(target, chosen):

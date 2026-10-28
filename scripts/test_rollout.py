@@ -1,7 +1,7 @@
 import copy
 import time
 import unittest
-from rollout import Controller, GateError
+from rollout import Controller, GateError, TaskHttpError
 
 
 class Fixture:
@@ -16,6 +16,8 @@ class Fixture:
         self.writer = {"taskArn": "old", "generation": "old-generation"}
         self.stage, self.route, self.busy = "POST_SCALE_UP", "source", False
         self.calls = []
+        self.old_rotation_error = False
+        self.journal = {"id": {"S": "credential-rotation:synthetic"}, "attempt": {"S": "attempt"}, "pending": {"BOOL": True}}
         self.states = {name: {"taskArn": name, "generation": name + "-generation", "protocol": 2,
                               "accepting": True, "protectedUntil": time.time() * 1000 + 60000, "drained": False}
                        for name in ("old", "new")}
@@ -31,13 +33,20 @@ class Fixture:
         if operation == "describe-tasks":
             return {"tasks": [{"taskArn": name, "clusterArn": self.manifest["cluster"], "group": "service:gateway",
                     "taskDefinitionArn": "definition-" + name, "lastStatus": "RUNNING", "desiredStatus": "RUNNING",
+                    "containers": [{"name": "gateway", "imageDigest": "digest-" + name}],
                     "attachments": [{"details": [{"name": "privateIPv4Address", "value": "10.0.0.1" if name == "old" else "10.0.0.2"}]}]}
                     for name in payload["tasks"]]}
         if operation == "describe-target-health":
             return {"TargetHealthDescriptions": [{"Target": {"Id": "10.0.0.1" if payload["TargetGroupArn"] == "blue" else "10.0.0.2", "Port": 8787},
                                                   "TargetHealth": {"State": "healthy"}}]}
         if operation == "get-item":
+            if payload["Key"]["id"]["S"].startswith("credential-rotation:"):
+                return {"Item": copy.deepcopy(self.journal)}
             return {"Item": {**{k: {"S": v} for k, v in self.writer.items()}, "protocol": {"N": "2"}, "phase": {"S": "active"}}}
+        if operation == "put-item":
+            assert payload["Item"]["id"]["S"] == "provider-owner", "Never rewrite the quarantine journal"
+            self.writer = {k: payload["Item"][k]["S"] for k in ("taskArn", "generation")}
+            return {}
         if operation == "describe-rules":
             return {"Rules": [{"Actions": [{"Type": "forward", "ForwardConfig": {"TargetGroups": [
                 {"TargetGroupArn": group, "Weight": 100 if self.route == side else 0}
@@ -62,6 +71,9 @@ class Fixture:
         self.calls.append(("http", path, body))
         name = "old" if "10.0.0.1:" in origin else "new"
         if path.endswith("/handoff"):
+            if self.old_rotation_error:
+                self.states[name].update(writeEligible=False, pendingWrites=0, unresolvedRotation=True)
+                raise TaskHttpError(409, "credential_rotation_unresolved")
             self.writer = copy.deepcopy(body)
         elif path.endswith("/activate"):
             self.states[name].update(accepting=True, drained=False)
@@ -145,8 +157,30 @@ class RolloutTests(unittest.TestCase):
             f.controller().step("cleanup-target")
         self.assertFalse(any(call[1].endswith("/retire") for call in f.calls))
 
-    def test_wrong_traffic_unprotected_or_unresolved_runtime_fail_closed(self):
-        for field, value in [("protectedUntil", 0), ("unresolvedRotation", True), ("taskArn", "foreign")]:
+    def test_pinned_sealed_writer_migration_preserves_the_quarantine_journal(self):
+        f = Fixture()
+        f.old_rotation_error = True
+        with self.assertRaisesRegex(GateError, "no reviewed"):
+            f.controller().step("cutover")
+        f.manifest["source"]["sealed_rotation_handoff"] = {
+            "image_digest": "digest-old", "journals": [{"id": "credential-rotation:synthetic", "attempt": "attempt"}]}
+        before = copy.deepcopy(f.journal)
+        f.controller().step("cutover")
+        self.assertEqual(f.writer["taskArn"], "new")
+        self.assertEqual(f.journal, before)
+
+    def test_changed_journal_or_unreviewed_image_cannot_use_sealed_handoff(self):
+        for image, attempt in [("other", "attempt"), ("digest-old", "other")]:
+            f = Fixture()
+            f.old_rotation_error = True
+            f.manifest["source"]["sealed_rotation_handoff"] = {
+                "image_digest": image, "journals": [{"id": "credential-rotation:synthetic", "attempt": attempt}]}
+            with self.assertRaises(GateError):
+                f.controller().step("cutover")
+            self.assertEqual(f.writer["taskArn"], "old")
+
+    def test_wrong_traffic_unprotected_or_mismatched_runtime_fail_closed(self):
+        for field, value in [("protectedUntil", 0), ("taskArn", "foreign")]:
             with self.subTest(field=field):
                 f = Fixture()
                 f.states["new"][field] = value

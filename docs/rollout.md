@@ -11,6 +11,8 @@ forwards late arrivals during drain, and closes HTTP admission before unprotecti
 An unresolved rotation leaves a durable `credential-rotation:<secret-id>` marker;
 never clear it or restore an old refresh token without reconciling provider and
 AWSCURRENT state. A crash/timeout is not permission to repeat a token rotation.
+The journal quarantines that secret across writer changes; it must not block
+healthy accounts or service deployment. A handoff still waits for every write.
 
 ## Gates
 
@@ -72,6 +74,18 @@ reply may need manual state reconciliation; it is not permission to force cleanu
 an unresolved credential rotation, invent a drain timeout, or force StopTask.
 Retirement resumption recognizes app-owned unprotection; never clear task
 protection externally. Task definitions remain registered for exact rollback.
+
+### Earlier protocol-2 journal barrier
+
+The initial protocol-2 binary seals writes, awaits their settlement, then rejects
+handoff with `409 credential_rotation_unresolved`. For that reviewed implementation
+only, `source.sealed_rotation_handoff` may pin `image_digest` and `journals`
+(`id`, `attempt`). The controller requires that exact running image, that exact
+HTTP error, sealed/idle source identity, unchanged pending journals and an
+unchanged writer generation before CAS transfer. The successor was verified by
+the predecessor's peer acceptance handshake. Journals remain untouched; unknown
+refresh results are not retried. This is not protocol-1 migration or a general
+override for failed handoffs. New runtimes transfer normally with quarantine intact.
 
 ## Qualification boundary
 

@@ -15,6 +15,12 @@ class GateError(Exception):
     pass
 
 
+class TaskHttpError(GateError):
+    def __init__(self, status, code):
+        self.status, self.code = status, code
+        super().__init__(f"Task returned HTTP {status}: {code}")
+
+
 def require(condition, message):
     if not condition:
         raise GateError(message)
@@ -78,9 +84,9 @@ class Controller:
             require(state.get("protocol") == 2, "Legacy migration is not qualified; refuse retirement/cutover")
             require(state.get("taskArn") == task["taskArn"] and state.get("generation"), "Runtime identity mismatch")
             require(state.get("protectedUntil", 0) > time.time() * 1000 and not state.get("retiring"), "Task not protected")
-            require(not state.get("unresolvedRotation"), "Unresolved credential rotation")
             self.http(origin, "/readyz")
             result.append({"origin": origin, "ip": ips[0], "state": state,
+                           "image": next((c.get("imageDigest") for c in task.get("containers", []) if c["name"] == "gateway"), None),
                            "identity": {k: state[k] for k in ("taskArn", "generation")}})
         if not cleanup:
             health = self.aws("elbv2", "describe-target-health", TargetGroupArn=expected["target_group"])["TargetHealthDescriptions"]
@@ -148,7 +154,41 @@ class Controller:
         current = next((t for t in old if t["identity"] == writer), None)
         require(current is not None, "Writer is outside the pinned task sets")
         chosen = new[0]
-        self.http(current["origin"], "/v1/admin/deployment/handoff", chosen["identity"])
+        try:
+            self.http(current["origin"], "/v1/admin/deployment/handoff", chosen["identity"])
+        except TaskHttpError as error:
+            # The first protocol-2 runtime seals admission and awaits every
+            # write, then returns this error when a durable journal is pending.
+            # An explicit, reviewed source-image pin enables that older barrier.
+            # Do not clear journals: they fence the same secret on the successor.
+            migration = self.m["source"].get("sealed_rotation_handoff", {})
+            require(error.status == 409 and error.code == "credential_rotation_unresolved"
+                    and current["identity"]["taskArn"] in self.m["source"]["tasks"]
+                    and migration.get("image_digest") == current.get("image")
+                    and current.get("image") and migration.get("journals"),
+                    "Handoff failed; no reviewed sealed-writer migration")
+            state = self.http(current["origin"], "/v1/admin/deployment")
+            require(all(state.get(k) == v for k, v in current["identity"].items())
+                    and state.get("pendingWrites") == 0 and state.get("writeEligible") is False
+                    and state.get("unresolvedRotation") is True, "Old writer seal not established")
+            for journal in migration["journals"]:
+                require(journal["id"].startswith("credential-rotation:"), "Invalid quarantine journal")
+                item = self.aws("dynamodb", "get-item", TableName=self.m["owner_table"],
+                                Key={"id": {"S": journal["id"]}}, ConsistentRead=True).get("Item", {})
+                require(item.get("pending", {}).get("BOOL") is True
+                        and item.get("attempt", {}).get("S") == journal["attempt"], "Quarantine journal changed")
+            require(self.writer() == current["identity"], "Sealed writer changed")
+            identity = chosen["identity"]
+            try:
+                self.aws("dynamodb", "put-item", TableName=self.m["owner_table"], Item={
+                    "id": {"S": "provider-owner"}, **{k: {"S": v} for k, v in identity.items()},
+                    "protocol": {"N": "2"}, "phase": {"S": "active"}, "heartbeatAt": {"N": str(int(time.time() * 1000))}
+                }, ConditionExpression="taskArn = :task AND generation = :generation AND protocol = :protocol",
+                    ExpressionAttributeValues={":task": {"S": current["identity"]["taskArn"]},
+                                               ":generation": {"S": current["identity"]["generation"]}, ":protocol": {"N": "2"}})
+            except Exception:
+                if self.writer() != identity:
+                    raise
         require(self.writer() == chosen["identity"], "Handoff not confirmed")
         return chosen
 
@@ -254,8 +294,15 @@ def main():
                                          {"Authorization": token if token.startswith("Bearer ") else "Bearer " + token,
                                           "Content-Type": "application/json"})
         # No inference/stream deadline is imposed. Ctrl-C leaves protected tasks.
-        with opener.open(request) as response:
-            return json.load(response)
+        try:
+            with opener.open(request) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            try:
+                code = json.load(error).get("error", {}).get("code", "unknown")
+            except (ValueError, AttributeError):
+                code = "unknown"
+            raise TaskHttpError(error.code, code) from None
 
     # Serialize deployment actions across operators. No expiry or automatic
     # stealing: an interrupted controller's identity must be explicitly resumed.

@@ -210,7 +210,7 @@ class Controller:
             self.transfer(source, target)
             # An uncertain Continue response is resolved on the next invocation
             # from ECS state, never by restarting inference.
-            self.aws("ecs", "continue-service-deployment", hookId=hook, action="CONTINUE")
+            self.aws("ecs", "continue-service-deployment", serviceDeploymentArn=self.m["deployment"], hookId=hook, action="CONTINUE")
             return "Cutover authorized; wait for POST_PRODUCTION_TRAFFIC_SHIFT."
         if action == "drain":
             self.hook("POST_PRODUCTION_TRAFFIC_SHIFT")
@@ -230,7 +230,7 @@ class Controller:
                 self.http(task["origin"], "/v1/admin/deployment/retire", {})
             self.await_retired(source)
             require(self.hook("POST_PRODUCTION_TRAFFIC_SHIFT") == hook, "Deployment pause changed during retirement")
-            self.aws("ecs", "continue-service-deployment", hookId=hook, action="CONTINUE")
+            self.aws("ecs", "continue-service-deployment", serviceDeploymentArn=self.m["deployment"], hookId=hook, action="CONTINUE")
             return "Source retirement confirmed; verify ECS completion and traffic externally."
         if action == "rollback":
             deployment = self.deployment()
@@ -247,7 +247,7 @@ class Controller:
             for task in target:
                 self.http(task["origin"], "/v1/admin/deployment/retire", {})
             self.await_retired(target)
-            self.aws("ecs", "continue-service-deployment", hookId=hook, action="ROLLBACK")
+            self.aws("ecs", "continue-service-deployment", serviceDeploymentArn=self.m["deployment"], hookId=hook, action="ROLLBACK")
             return "Candidate retirement confirmed; rollback requested."
         if action in ("cleanup-source", "cleanup-target"):
             retired = action.split("-")[1]

@@ -52,6 +52,7 @@ class Fixture:
                 {"TargetGroupArn": group, "Weight": 100 if self.route == side else 0}
                 for side, group in [("source", "blue"), ("target", "green")]]}}]}]}
         if operation == "continue-service-deployment":
+            assert payload["serviceDeploymentArn"] == self.manifest["deployment"]
             if payload["action"] == "ROLLBACK":
                 self.route = "source"
             elif self.stage == "POST_SCALE_UP":

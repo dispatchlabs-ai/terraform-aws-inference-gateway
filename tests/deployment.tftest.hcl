@@ -44,6 +44,10 @@ run "legacy_default_is_unchanged" {
 run "distributed_is_paused_and_uses_readiness" {
   command = plan
   variables { distributed_deployments = true }
+  override_resource {
+    target = aws_lb_target_group.alternate
+    values = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/test-alt/fedcba9876543210" }
+  }
   assert {
     condition     = length(aws_lb_target_group.alternate) == 1 && aws_lb_target_group.gateway.health_check[0].path == "/readyz"
     error_message = "Distributed serving requires alternate targets and readiness checks."
@@ -55,5 +59,16 @@ run "distributed_is_paused_and_uses_readiness" {
   assert {
     condition     = one(aws_ecs_service.gateway.deployment_configuration[0].lifecycle_hook).target_type == "PAUSE" && one(one(aws_ecs_service.gateway.deployment_configuration[0].lifecycle_hook).timeout_configuration).action == "ROLLBACK"
     error_message = "A timeout must never force unfinished request retirement."
+  }
+  assert {
+    condition = alltrue([
+      for action in ["elasticloadbalancing:RegisterTargets", "elasticloadbalancing:DeregisterTargets"] :
+      length([
+        for statement in jsondecode(aws_iam_role_policy.deployment[0].policy).Statement : statement
+        if statement.Effect == "Allow" && contains(statement.Action, action) &&
+        toset(flatten([statement.Resource])) == toset([aws_lb_target_group.gateway.arn, aws_lb_target_group.alternate[0].arn])
+      ]) == 1
+    ])
+    error_message = "ECS must register and deregister targets only in this gateway's two target groups."
   }
 }

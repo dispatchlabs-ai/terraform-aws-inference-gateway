@@ -189,6 +189,8 @@ resource "aws_route53_record" "gateway" {
 
 resource "aws_ecs_task_definition" "gateway" {
   family                   = var.name
+  # Retain the exact source revision for ECS rollback and later qualification.
+  skip_destroy             = true
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = var.cpu

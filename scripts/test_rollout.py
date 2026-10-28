@@ -97,6 +97,15 @@ class RolloutTests(unittest.TestCase):
         self.assertLess(released, continued, "ECS deregistration must follow confirmed application close")
         self.assertFalse(any("responses" in call[1] or "stop-task" == call[1] for call in f.calls))
 
+    def test_finish_resumes_after_a_retirement_reply_was_lost(self):
+        f = Fixture()
+        f.controller().step("cutover")
+        f.controller().step("drain")
+        f.states["old"]["retiring"] = True
+        f.controller().step("finish")
+        self.assertEqual(f.stage, "CLEAN_UP")
+        self.assertFalse(any(c[1].endswith("/retire") for c in f.calls))
+
     def test_interrupted_controller_resumes_from_observed_ownership(self):
         f = Fixture()
         f.writer = {"taskArn": "new", "generation": "new-generation"}
@@ -124,6 +133,7 @@ class RolloutTests(unittest.TestCase):
         f.busy = False
         f.controller().step("rollback")
         self.assertEqual(f.route, "source")
+        self.assertTrue(f.states["new"]["retiring"], "Retire before ECS can deregister candidates")
         f.controller().step("cleanup-target")
         self.assertTrue(f.states["new"]["retiring"])
 

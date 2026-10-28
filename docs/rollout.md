@@ -57,8 +57,8 @@ target health, routing and writer ownership. It never treats its own success as
 end-to-end qualification.
 
 `rollback` reactivates source, transfers the writer back, shifts new traffic and
-drains candidate streams **before** permitting ECS rollback. Repeat while draining, then use
-`cleanup-target` only after the source route is confirmed. `cleanup-source`
+drains and retires candidate streams **before** permitting ECS rollback. Repeat while draining.
+`cleanup-target` is recovery-only after the source route is confirmed. `cleanup-source`
 resumes source retirement after an interrupted finish. A successful retirement
 response only acknowledges shutdown. The controller waits for app-owned
 unprotection or STOPPED before authorizing ECS cleanup; verify final traffic too.
@@ -70,6 +70,8 @@ drain/cleanup action rather than reissuing cutover. Release/reassign a retained
 controller lock only after verifying the original process is gone. A lost retirement
 reply may need manual state reconciliation; it is not permission to force cleanup. Never bypass
 an unresolved credential rotation, invent a drain timeout, or force StopTask.
+Retirement resumption recognizes app-owned unprotection; never clear task
+protection externally. Task definitions remain registered for exact rollback.
 
 ## Qualification boundary
 

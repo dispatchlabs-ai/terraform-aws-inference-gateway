@@ -61,8 +61,15 @@ class Controller:
         for task in values:
             require(task["clusterArn"] == self.m["cluster"] and task["group"] == f"service:{self.m['service'].split('/')[-1]}"
                     and task["taskDefinitionArn"] == expected["task_definition"], "Task identity or release mismatch")
-            if cleanup and task["lastStatus"] == "STOPPED":
-                continue
+            if cleanup:
+                if task["lastStatus"] == "STOPPED":
+                    continue
+                # A previous retire may have closed HTTP before its reply was
+                # received. The runtime alone clears protection after closure.
+                protection = self.aws("ecs", "get-task-protection", cluster=self.m["cluster"], tasks=[task["taskArn"]]).get("protectedTasks", [])
+                short = task["taskArn"].replace(":task/" + self.m["cluster"].split("/")[-1] + "/", ":task/")
+                if any(p["taskArn"] in (task["taskArn"], short) and p.get("protectionEnabled") is False for p in protection):
+                    continue
             require(task["lastStatus"] == "RUNNING" and task["desiredStatus"] == "RUNNING", "Task is not RUNNING")
             ips = [d["value"] for a in task.get("attachments", []) for d in a.get("details", []) if d["name"] == "privateIPv4Address"]
             require(len(ips) == 1 and ipaddress.ip_address(ips[0]).version == 4, "Task address unavailable")
@@ -172,7 +179,7 @@ class Controller:
         if action == "finish":
             hook = self.hook("POST_PRODUCTION_TRAFFIC_SHIFT")
             self.routed("target")
-            source, target = self.tasks("source"), self.tasks("target")
+            source, target = self.tasks("source", cleanup=True), self.tasks("target")
             require(self.writer() in [t["identity"] for t in target], "Writer not on candidate")
             require(all(t["state"].get("drained") is True for t in source), "Old tasks have not drained")
             # Close HTTP admission and verify app-owned unprotection BEFORE ECS
@@ -187,15 +194,18 @@ class Controller:
             deployment = self.deployment()
             require(deployment["lifecycleStage"] in ("POST_SCALE_UP", "POST_PRODUCTION_TRAFFIC_SHIFT"), "Rollback needs a retained pause")
             hook = self.hook(deployment["lifecycleStage"])
-            source, target = self.tasks("source"), self.tasks("target")
+            source, target = self.tasks("source"), self.tasks("target", cleanup=True)
             for task in source:
                 self.http(task["origin"], "/v1/admin/deployment/activate", {})
             chosen = self.transfer(target, source)
             self.rollback_route()
             if not self.drain(target, chosen):
                 return "Rollback draining; candidates forward to source. Run rollback again."
+            for task in target:
+                self.http(task["origin"], "/v1/admin/deployment/retire", {})
+            self.await_retired(target)
             self.aws("ecs", "continue-service-deployment", hookId=hook, action="ROLLBACK")
-            return "Rollback requested; keep candidates protected until rollback routing is verified."
+            return "Candidate retirement confirmed; rollback requested."
         if action in ("cleanup-source", "cleanup-target"):
             retired = action.split("-")[1]
             serving = "target" if retired == "source" else "source"

@@ -184,7 +184,8 @@ class Controller:
                 self.aws("dynamodb", "put-item", TableName=self.m["owner_table"], Item={
                     "id": {"S": "provider-owner"}, **{k: {"S": v} for k, v in identity.items()},
                     "protocol": {"N": "2"}, "phase": {"S": "active"}, "heartbeatAt": {"N": str(int(time.time() * 1000))}
-                }, ConditionExpression="taskArn = :task AND generation = :generation AND protocol = :protocol",
+                }, ConditionExpression="taskArn = :task AND generation = :generation AND #protocol = :protocol",
+                    ExpressionAttributeNames={"#protocol": "protocol"},
                     ExpressionAttributeValues={":task": {"S": current["identity"]["taskArn"]},
                                                ":generation": {"S": current["identity"]["generation"]}, ":protocol": {"N": "2"}})
             except Exception:
@@ -267,7 +268,11 @@ class Controller:
 
 def aws_cli(service, operation, **payload):
     command = ["aws", service, operation, "--cli-input-json", json.dumps(payload), "--output", "json", "--no-cli-pager"]
-    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True)
+    # This controller sends only resource identities and coordination metadata
+    # to AWS, never bearer tokens or provider secrets. Keep control-plane
+    # diagnostics actionable without printing HTTP authentication or payloads.
+    require(result.returncode == 0, f"{operation}: {result.stderr.strip()}")
     value = json.loads(result.stdout or "{}")
     require(not value.get("failures"), f"{operation}: incomplete AWS result")
     return value

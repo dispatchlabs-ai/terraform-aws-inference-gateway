@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Retain rollback task definitions; wait for app-owned retirement before ECS
+  cleanup and support resuming confirmed retirement.
+- Keep unresolved credential journals intact across handoff, including an
+  explicitly pinned migration from the earlier sealed-error implementation.
+- Supply ECS's required deployment ARN when continuing a pause and expose safe
+  AWS diagnostics. Nine controller regressions pass; one real protocol-2 release
+  completed without observed probe failures. Natural renewal/live rollback
+  qualification remains outstanding.
+
 ## [0.1.0-alpha.3](https://github.com/dispatchlabs-ai/terraform-aws-inference-gateway/compare/v0.1.0-alpha.2...v0.1.0-alpha.3) — 2026-10-28
 
 ### Fixed

@@ -1,8 +1,11 @@
 # Protected blue/green rollout
 
-**Opt-in source implementation; not live-qualified.** `distributed_deployments`
+**Opt-in; bounded live deployment evidence, not universal qualification.** `distributed_deployments`
 defaults to false. Keep it false on legacy images. Enabling it replaces tasks;
-it is not inert staging or a qualified first migration.
+it is not inert staging or a qualified zero-downtime first migration.
+One production protocol-2 release preserved sustained requests, writer-handoff
+streaming and a pre-existing session while retiring the source. Natural OAuth
+renewal and live rollback still need qualification.
 
 Protocol 2 serves each request on one replica. Only the elected writer rotates
 OAuth credentials. Health checks and this controller execute no inference.

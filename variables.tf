@@ -79,6 +79,11 @@ variable "desired_count" {
     error_message = "Use a nonnegative integer."
   }
 }
+variable "distributed_deployments" {
+  description = "Opt in to protocol-2 read-only serving, protected tasks and controller-gated blue/green deployment. Requires a qualified runtime and first migration; never enable with a legacy image."
+  type        = bool
+  default     = false
+}
 variable "cpu" {
   type    = number
   default = 512

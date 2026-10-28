@@ -61,7 +61,7 @@ resource "aws_iam_role_policy" "task" {
     { Effect = "Allow", Action = ["secretsmanager:PutSecretValue"], Resource = var.connection_secret_arns },
     { Effect = "Allow", Action = ["s3:GetObject"], Resource = local.configuration_arn },
     { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.owner.arn },
-    { Effect = "Allow", Action = ["ecs:DescribeTasks", "ecs:StopTask"], Resource = local.task_arn_pattern, Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.gateway.arn } } }
+    { Effect = "Allow", Action = concat(["ecs:DescribeTasks"], var.distributed_deployments ? ["ecs:GetTaskProtection", "ecs:UpdateTaskProtection"] : ["ecs:StopTask"]), Resource = local.task_arn_pattern, Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.gateway.arn } } }
     ], var.enable_employee_access ? [{ Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"], Resource = aws_dynamodb_table.access[0].arn }] : [],
   length(var.kms_key_arns) == 0 ? [] : [{ Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = var.kms_key_arns }]) })
 }
@@ -138,7 +138,7 @@ resource "aws_lb_target_group" "gateway" {
   vpc_id               = var.vpc_id
   deregistration_delay = 300
   health_check {
-    path                = "/healthz"
+    path                = var.distributed_deployments ? "/readyz" : "/healthz"
     matcher             = "200"
     interval            = 15
     healthy_threshold   = 2
@@ -205,14 +205,14 @@ resource "aws_ecs_task_definition" "gateway" {
     linuxParameters = { initProcessEnabled = true, capabilities = { add = [], drop = ["ALL"] } },
     portMappings    = [{ containerPort = 8787, hostPort = 8787, protocol = "tcp" }],
     mountPoints     = [], volumesFrom = [], systemControls = [],
-    environment = [
+    environment = concat([
       { name = "AWS_REGION", value = local.region },
       { name = "DISPATCH_GATEWAY_CONFIG", value = var.configuration_uri },
       { name = "DISPATCH_GATEWAY_CONFIG_SHA256", value = var.configuration_sha256 },
       { name = "DISPATCH_GATEWAY_ECS_CLUSTER", value = aws_ecs_cluster.gateway.arn },
       { name = "DISPATCH_GATEWAY_ECS_SERVICE", value = local.service },
       { name = "DISPATCH_GATEWAY_OWNER_TABLE", value = aws_dynamodb_table.owner.name }
-    ],
+    ], var.distributed_deployments ? [{ name = "DISPATCH_GATEWAY_DISTRIBUTED", value = "1" }] : []),
     logConfiguration = { logDriver = "awslogs", options = { "awslogs-group" = aws_cloudwatch_log_group.gateway.name, "awslogs-region" = local.region, "awslogs-stream-prefix" = "gateway", "mode" = "non-blocking", "max-buffer-size" = "10m" } }
   }])
   tags = var.tags
@@ -228,9 +228,27 @@ resource "aws_ecs_service" "gateway" {
   deployment_maximum_percent         = 200
   health_check_grace_period_seconds  = 90
   availability_zone_rebalancing      = "ENABLED"
-  deployment_circuit_breaker {
-    enable   = true
-    rollback = true
+  dynamic "deployment_circuit_breaker" {
+    for_each = var.distributed_deployments ? [] : [1]
+    content {
+      enable   = true
+      rollback = true
+    }
+  }
+  dynamic "deployment_configuration" {
+    for_each = var.distributed_deployments ? [1] : []
+    content {
+      strategy             = "BLUE_GREEN"
+      bake_time_in_minutes = 0
+      lifecycle_hook {
+        target_type      = "PAUSE"
+        lifecycle_stages = ["POST_SCALE_UP", "POST_PRODUCTION_TRAFFIC_SHIFT"]
+        timeout_configuration {
+          action             = "ROLLBACK"
+          timeout_in_minutes = 20160
+        }
+      }
+    }
   }
   network_configuration {
     subnets          = var.subnet_ids
@@ -241,7 +259,15 @@ resource "aws_ecs_service" "gateway" {
     target_group_arn = aws_lb_target_group.gateway.arn
     container_name   = "gateway"
     container_port   = 8787
+    dynamic "advanced_configuration" {
+      for_each = var.distributed_deployments ? [1] : []
+      content {
+        alternate_target_group_arn = aws_lb_target_group.alternate[0].arn
+        production_listener_rule   = aws_lb_listener_rule.production[0].arn
+        role_arn                   = aws_iam_role.deployment[0].arn
+      }
+    }
   }
   tags       = var.tags
-  depends_on = [aws_lb_listener.https, aws_iam_role_policy.task, aws_iam_role_policy.execution, aws_cloudwatch_event_target.stopped, aws_lambda_permission.events]
+  depends_on = [aws_lb_listener.https, aws_iam_role_policy.task, aws_iam_role_policy.execution, aws_iam_role_policy.deployment, aws_cloudwatch_event_target.stopped, aws_lambda_permission.events]
 }

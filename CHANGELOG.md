@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add opt-in protocol-2 blue/green configuration, task-protection IAM and a
+  checked cutover/drain/rollback controller. Default legacy behavior is unchanged;
+  first migration and live AWS qualification remain outstanding. Requires AWS
+  provider 6.67+ for pause hooks.
+
 - Document the separately maintained private runtime and replace its obsolete monorepo source link.
 
 - Add optional durable employee access/usage storage and read-only authentication secret grants. Employee spending limits remain unset; policy and identity administration belong to the gateway runtime.

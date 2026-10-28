@@ -8,5 +8,7 @@ output "access_table_name" { value = try(aws_dynamodb_table.access[0].name, null
 output "alb_dns_name" { value = aws_lb.gateway.dns_name }
 output "alb_zone_id" { value = aws_lb.gateway.zone_id }
 output "target_group_arn" { value = aws_lb_target_group.gateway.arn }
+output "alternate_target_group_arn" { value = try(aws_lb_target_group.alternate[0].arn, null) }
+output "production_listener_rule_arn" { value = try(aws_lb_listener_rule.production[0].arn, null) }
 output "log_group_name" { value = aws_cloudwatch_log_group.gateway.name }
 output "stopped_events_dead_letter_queue_url" { value = aws_sqs_queue.failed_events.url }

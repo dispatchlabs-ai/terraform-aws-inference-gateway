@@ -36,7 +36,7 @@ tofu -chdir=examples/basic validate
 No AWS credentials are needed for validation. Follow the
 [deployment guide](docs/deploy.md) to supply real inputs, inspect a plan, build the
 runtime and deploy. Terraform 1.5+ or OpenTofu is supported by the configuration;
-AWS provider 6.x and Archive provider 2.7+ are required. The deployed runtime is
+AWS provider 6.67+ and Archive provider 2.7+ are required. The deployed runtime is
 Linux. Module authoring commands are portable shell commands for Linux/macOS.
 
 ## What it creates
@@ -62,6 +62,11 @@ and forwards requests without initializing providers. Takeover requires actual
 ECS `STOPPED` evidence; an expired heartbeat only permits stopping the old task.
 This protects rotating OAuth credentials but permits a recovery gap. In-flight
 streams can be interrupted and are never automatically replayed.
+
+An opt-in protocol-2 path, `distributed_deployments`, adds protected blue/green
+deployment gates and independent serving replicas. It remains disabled by default;
+the [controller and qualification boundary](docs/rollout.md) explicitly reject
+unqualified legacy migration. It is not a claim of zero-downtime production support.
 
 The module expects the ECS-aware runtime in
 [inference gateway repository](https://github.com/dispatchlabs-ai/inference-gateway),

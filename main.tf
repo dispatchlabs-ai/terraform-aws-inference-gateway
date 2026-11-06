@@ -62,7 +62,7 @@ resource "aws_iam_role_policy" "task" {
     { Effect = "Allow", Action = ["s3:GetObject"], Resource = local.configuration_arn },
     { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.owner.arn },
     { Effect = "Allow", Action = concat(["ecs:DescribeTasks"], var.distributed_deployments ? ["ecs:GetTaskProtection", "ecs:UpdateTaskProtection"] : ["ecs:StopTask"]), Resource = local.task_arn_pattern, Condition = { ArnEquals = { "ecs:cluster" = aws_ecs_cluster.gateway.arn } } }
-    ], var.enable_employee_access ? [{ Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"], Resource = aws_dynamodb_table.access[0].arn }] : [],
+    ], var.enable_employee_access ? [{ Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:ConditionCheckItem"], Resource = aws_dynamodb_table.access[0].arn }] : [],
   length(var.kms_key_arns) == 0 ? [] : [{ Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = var.kms_key_arns }]) })
 }
 

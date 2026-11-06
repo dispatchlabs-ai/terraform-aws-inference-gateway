@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Allow transactional policy revision checks on the employee access table so
+  the gateway can reserve usage atomically against individual/company budgets.
+  No new table or spending limit is created.
+
 - Retain rollback task definitions; wait for app-owned retirement before ECS
   cleanup and support resuming confirmed retirement.
 - Keep unresolved credential journals intact across handoff, including an

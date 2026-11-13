@@ -84,3 +84,14 @@ and the runtime sends SSE heartbeat comments. Existing streams may still end on
 task shutdown. The service uses on-demand Fargate, not Spot. Public IPv4, ALB,
 Fargate, logs, Secrets Manager, S3 and DynamoDB all contribute to cost; this
 module neither purchases savings plans nor imposes a spending cap.
+
+## Serving health
+
+The operational observer samples production routing and target health every
+minute and publishes `InferenceGateway/ServingHealthyHostCount` for the service.
+The alarm follows this metric across blue/green traffic shifts and rollbacks.
+Only groups receiving traffic count; if traffic is split, the least healthy
+receiving group governs. Legacy single-group services observe their sole group.
+Missing observations breach the alarm, including observer or permission failures.
+This is target readiness, not an end-to-end inference check. Notification delivery
+still requires configured `alarm_actions`.

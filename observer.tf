@@ -12,6 +12,8 @@ resource "aws_iam_role_policy" "observer" {
   role = aws_iam_role.observer.id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["dynamodb:UpdateItem"], Resource = aws_dynamodb_table.owner.arn },
+    { Effect = "Allow", Action = ["elasticloadbalancing:DescribeRules", "elasticloadbalancing:DescribeTargetHealth"], Resource = "*" },
+    { Effect = "Allow", Action = ["cloudwatch:PutMetricData"], Resource = "*", Condition = { StringEquals = { "cloudwatch:namespace" = "InferenceGateway" } } },
     { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.observer.arn}:*" },
     { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.failed_events.arn }
   ] })
@@ -30,7 +32,13 @@ resource "aws_lambda_function" "observer" {
   source_code_hash = data.archive_file.observer.output_base64sha256
   timeout          = 30
   environment {
-    variables = { CLUSTER_ARN = aws_ecs_cluster.gateway.arn, SERVICE = local.service, OWNER_TABLE = aws_dynamodb_table.owner.name }
+    variables = {
+      CLUSTER_ARN   = aws_ecs_cluster.gateway.arn
+      SERVICE       = local.service
+      OWNER_TABLE   = aws_dynamodb_table.owner.name
+      LISTENER_RULE = try(aws_lb_listener_rule.production[0].arn, "")
+      TARGET_GROUPS = jsonencode(concat([aws_lb_target_group.gateway.arn], aws_lb_target_group.alternate[*].arn))
+    }
   }
   dead_letter_config { target_arn = aws_sqs_queue.failed_events.arn }
   tags       = var.tags
@@ -90,9 +98,9 @@ resource "aws_cloudwatch_metric_alarm" "failed_events" {
 }
 resource "aws_cloudwatch_metric_alarm" "unhealthy" {
   alarm_name          = "${var.name}-healthy-tasks-low"
-  namespace           = "AWS/ApplicationELB"
-  metric_name         = "HealthyHostCount"
-  dimensions          = { LoadBalancer = aws_lb.gateway.arn_suffix, TargetGroup = aws_lb_target_group.gateway.arn_suffix }
+  namespace           = "InferenceGateway"
+  metric_name         = "ServingHealthyHostCount"
+  dimensions          = { Service = local.service }
   statistic           = "Minimum"
   period              = 60
   evaluation_periods  = 3
@@ -101,6 +109,23 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy" {
   treat_missing_data  = "breaching"
   alarm_actions       = var.alarm_actions
   tags                = var.tags
+}
+
+resource "aws_cloudwatch_event_rule" "serving_health" {
+  name                = "${var.name}-serving-health"
+  schedule_expression = "rate(1 minute)"
+  tags                = var.tags
+}
+resource "aws_cloudwatch_event_target" "serving_health" {
+  rule = aws_cloudwatch_event_rule.serving_health.name
+  arn  = aws_lambda_function.observer.arn
+}
+resource "aws_lambda_permission" "serving_health" {
+  statement_id  = "ServingHealthSchedule"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.observer.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.serving_health.arn
 }
 resource "aws_cloudwatch_metric_alarm" "request_errors" {
   alarm_name          = "${var.name}-request-errors"

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Observe healthy targets from the current production listener every minute.
+  Blue/green cutovers and rollbacks no longer leave the alarm on an empty group;
+  healthy standby targets cannot hide a failing serving group.
+
 - Allow transactional policy revision checks on the employee access table so
   the gateway can reserve usage atomically against individual/company budgets.
   No new table or spending limit is created.
